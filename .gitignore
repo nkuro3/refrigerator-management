@@ -1,0 +1,10 @@
+node_modules/
+.turbo/
+.env
+.env*.local
+supabase/.branches
+supabase/.temp
+supabase/functions/.env
+*.tsbuildinfo
+.DS_Store
+deno.lock

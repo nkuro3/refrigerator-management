@@ -1,0 +1,20 @@
+{
+  "name": "refrigerator-management",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test && vitest run --root supabase/functions",
+    "test:db": "supabase/tests/run.sh",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.5",
+    "supabase": "^2.118.0",
+    "vitest": "^5.0.2"
+  },
+  "packageManager": "bun@1.3.13"
+}

@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "冷蔵庫",
+    "slug": "refrigerator-management",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nkuro3.fridge"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nkuro3.fridge"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "レシートや買ってきた食品を撮影して登録するためにカメラを使います",
+          "photosPermission": "撮影済みの写真から登録するために写真へのアクセスを使います"
+        }
+      ],
+      [
+        "expo-notifications",
+        {}
+      ],
+      "expo-image"
+    ],
+    "scheme": "fridge",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
