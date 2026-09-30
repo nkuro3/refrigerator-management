@@ -19,7 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.nkuro3.fridge",
-      "permissions": [
+      "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -38,7 +38,8 @@
         "expo-image-picker",
         {
           "cameraPermission": "レシートや買ってきた食品を撮影して登録するためにカメラを使います",
-          "photosPermission": "撮影済みの写真から登録するために写真へのアクセスを使います"
+          "photosPermission": "撮影済みの写真から登録するために写真へのアクセスを使います",
+          "microphonePermission": false
         }
       ],
       [
