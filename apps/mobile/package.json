@@ -40,7 +40,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "build:web": "expo export --platform web --output-dir dist",
+    "build:web": "expo export --platform web --output-dir dist --clear",
     "deploy:web": "bun run build:web && bunx wrangler pages deploy dist --project-name fridge-app --branch main"
   },
   "private": true
