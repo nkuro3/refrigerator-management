@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Share, Text, View } from "react-native";
+import { Platform, Share, Text, View } from "react-native";
 import { Button, Card, Chip, ErrorText, Field, Screen, SectionTitle, styles } from "../../components/ui";
 import { useAuth, useHousehold } from "../../lib/auth";
 import { confirmAction } from "../../lib/confirm";
+import { inviteMessage, inviteUrl } from "../../lib/invite";
 import { enablePush, getPushStatus, type PushStatus, unregisterPushToken } from "../../lib/push";
 import { useMembers } from "../../lib/queries";
 import { supabase } from "../../lib/supabase";
@@ -50,6 +51,21 @@ export default function Settings() {
     setBusy(false);
   };
 
+  // 共有シート（Web では navigator.share）がなければクリップボードにコピーする
+  const shareInvite = async (c: string) => {
+    const message = inviteMessage(c);
+    try {
+      if (Platform.OS === "web" && !navigator.share) {
+        await navigator.clipboard.writeText(message);
+        window.alert("招待メッセージをコピーしました。LINE などに貼り付けて送ってください。");
+        return;
+      }
+      await Share.share({ message });
+    } catch {
+      // 共有をキャンセルした場合など
+    }
+  };
+
   const invite = async () => {
     setError(null);
     const { data, error } = await supabase.rpc("create_invite");
@@ -71,7 +87,8 @@ export default function Settings() {
           <View style={{ gap: 8 }}>
             <Text style={styles.muted}>招待コード（7日間有効）</Text>
             <Text style={{ fontSize: 28, fontWeight: "700", letterSpacing: 4 }} selectable>{code}</Text>
-            <Button title="コードを送る" variant="secondary" small onPress={() => Share.share({ message: `冷蔵庫アプリの招待コード: ${code}` })} />
+            <Text style={styles.muted} selectable>{inviteUrl(code)}</Text>
+            <Button title="招待リンクを送る" variant="secondary" small onPress={() => void shareInvite(code)} />
           </View>
         ) : (
           <Button title="家族を招待する" variant="secondary" onPress={invite} />

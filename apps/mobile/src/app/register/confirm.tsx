@@ -118,19 +118,25 @@ export default function RegisterConfirm() {
                   accessibilityLabel="商品名"
                 />
                 <View style={styles.row}>
-                  <Text style={styles.label}>個数</Text>
+                  <Text style={[styles.label, { width: 36 }]}>個数</Text>
                   <Button title="−" variant="secondary" small onPress={() => setItem(d.key, { quantity: Math.max(1, d.quantity - 1) })} />
                   <Text style={[styles.body, { minWidth: 24, textAlign: "center" }]}>{d.quantity}</Text>
                   <Button title="＋" variant="secondary" small onPress={() => setItem(d.key, { quantity: Math.min(50, d.quantity + 1) })} />
-                  <Text style={[styles.label, { marginLeft: 8 }]}>単価</Text>
+                </View>
+                {/* 単価は別の行にする（Web では入力欄が既定の幅から縮まず、1行に並べるとはみ出すため） */}
+                <View style={styles.row}>
+                  <Text style={[styles.label, { width: 36 }]}>単価</Text>
                   <TextInput
                     value={d.unitPrice === null ? "" : String(d.unitPrice)}
                     onChangeText={(v) => setItem(d.key, { unitPrice: v.trim() === "" ? null : Number(v.replace(/\D/g, "")) || 0 })}
                     keyboardType="number-pad"
-                    placeholder="円"
-                    style={[styles.input, { flex: 1 }]}
-                    accessibilityLabel="単価"
+                    inputMode="numeric"
+                    placeholder="未入力"
+                    placeholderTextColor={colors.sub}
+                    style={[styles.input, { width: 120, minWidth: 0, textAlign: "right" }]}
+                    accessibilityLabel="単価（円）"
                   />
+                  <Text style={styles.body}>円</Text>
                 </View>
                 <View style={[styles.row, { justifyContent: "space-between" }]}>
                   <Text style={styles.body}>冷凍食品</Text>

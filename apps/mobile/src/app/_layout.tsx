@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { colors, Loading } from "../components/ui";
 import { AuthProvider, useAuth } from "../lib/auth";
 import { draftStore } from "../lib/draft-store";
+import "../lib/invite"; // 招待リンクのコードを、ルーターが URL を書き換える前に取り出す
 import { registerPushToken, useNotificationNavigation } from "../lib/push";
 import { useRealtimeSync } from "../lib/queries";
 
