@@ -7,7 +7,7 @@ import { Button, Chip, colors, ErrorText, styles } from "./ui";
 
 type Props = {
   product: ProductWithItem | null;
-  isLastOfItem: boolean; // その品目の最後の1つなら買い物リストへの追加を初期ONにする
+  isLastOfItem: boolean; // その品目の最後の1つかどうか（買い物リストへの追加の案内に使う）
   onClose: () => void;
   onDone?: () => void;
 };
@@ -23,7 +23,8 @@ function EndSheetContent({ product, isLastOfItem, onClose, onDone }: Props & { p
   const endProduct = useEndProduct();
   const [reason, setReason] = useState<"used_up" | "discarded">("used_up");
   const [discardReason, setDiscardReason] = useState<DiscardReason>("expired");
-  const [addToShopping, setAddToShopping] = useState(isLastOfItem);
+  // 買い物リストへの追加は最初はオフ（必要なときだけオンにする）
+  const [addToShopping, setAddToShopping] = useState(false);
 
   const submit = () =>
     endProduct.mutate(
@@ -52,7 +53,10 @@ function EndSheetContent({ product, isLastOfItem, onClose, onDone }: Props & { p
             </View>
           )}
           <View style={[styles.row, { justifyContent: "space-between" }]}>
-            <Text style={styles.body}>買い物リストに「{product.item_masters.name}」を追加</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.body}>買い物リストに「{product.item_masters.name}」を追加</Text>
+              {isLastOfItem && <Text style={styles.muted}>在庫はこれが最後の1つです</Text>}
+            </View>
             <Switch value={addToShopping} onValueChange={setAddToShopping} trackColor={{ true: colors.primary }} />
           </View>
           <ErrorText error={endProduct.error} />
