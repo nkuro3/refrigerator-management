@@ -261,7 +261,7 @@ export async function analyzePurchase(receiptPath: string | null, photoPaths: st
   if (error) {
     const status = (error as { context?: { status?: number } }).context?.status;
     if (status === 429) {
-      throw new AnalyzeError("今日のAI判定の上限に達しました。明日もう一度試すか、手入力で登録してください。", true);
+      throw new AnalyzeError("AI判定の利用上限に達しました（OpenAI の残高や上限を確認してください）。手入力でも登録できます。", true);
     }
     throw new AnalyzeError("AI判定に失敗しました。時間をおいてもう一度試してください。");
   }

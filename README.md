@@ -1,19 +1,20 @@
 # 冷蔵庫管理アプリ
 
-家族で冷蔵庫・食品ストックを共有するアプリです。レシートと買ってきた食品をまとめて撮影すると、AI（Gemini）が商品と品目を判定して一括登録します。期限3日以内と解凍済みの食品は毎日プッシュ通知で知らせ、使い切った量・捨てた量をダッシュボードで確認できます。
+家族で冷蔵庫・食品ストックを共有するアプリです。レシートと買ってきた食品をまとめて撮影すると、AI が商品を読み取り、品目を判定して一括登録します。期限3日以内と解凍済みの食品は毎日プッシュ通知で知らせ、使い切った量・捨てた量をダッシュボードで確認できます。
 
 - 対応: iOS / Android（Expo）
 - バックエンド: Supabase（Postgres・Auth・Storage・Realtime・Edge Functions・pg_cron）
-- AI: Gemini 3.8 Flash（無料枠の上限に達したら Gemini 3.5 Flash-Lite で再試行）
+- AI: 抽出は OpenAI gpt-6-luna（画像から商品名・個数・単価などを読み取る）、判定は TypeSafe Jev（品目マスタから品目を選ぶ）
 - 仕様書: https://claude.ai/code/artifact/42cfd838-8336-4477-871d-622f9ca2c904
 
-インフラはすべて無料枠で動きます。費用がかかるのは iPhone 配布用の Apple Developer Program（年額 $99）だけです。
+Supabase・Expo は無料枠で動きます。費用がかかるのは、AI の API（OpenAI と TypeSafe、どちらも従量課金で家族利用なら月数円程度）と、iPhone 配布用の Apple Developer Program（年額 $99）です。
 
 ## 必要なもの
 
 - [Bun](https://bun.sh)
 - Supabase アカウント（Free プラン）
-- Google AI Studio の API キー（請求先を設定しない＝無料枠のまま）
+- OpenAI の API キー（無料枠がないため、クレジットの購入が必要。月の使用上限を低めに設定しておく）
+- TypeSafe の API キー（https://typesafe.ai）
 - Expo アカウント（Free プラン）
 - Apple Developer Program（iPhone に配布する場合）
 - Firebase プロジェクト（Android にプッシュ通知を送る場合・無料）
@@ -48,7 +49,7 @@ bun install
 5. Edge Functions のシークレットを設定してデプロイします。
 
    ```bash
-   bunx supabase secrets set GEMINI_API_KEY=<Google AI Studio の API キー> CRON_SECRET=<CRON_SECRET>
+   bunx supabase secrets set OPENAI_API_KEY=<OpenAI の API キー> TYPESAFE_API_KEY=<TypeSafe の API キー> CRON_SECRET=<CRON_SECRET>
    bunx supabase functions deploy analyze-purchase
    bunx supabase functions deploy expiry-alerts
    ```
@@ -105,7 +106,8 @@ PGURL=postgres://postgres@localhost:5432/postgres bun run test:db   # マイグ�
 | サービス | 制限 | このアプリでの扱い |
 | --- | --- | --- |
 | Supabase Free | DB 500MB・Storage 1GB。1週間アクセスがないとプロジェクトが一時停止 | 画像は長辺1280pxの JPEG に圧縮、レシート画像は登録後に削除。停止したらダッシュボードから再開する |
-| Gemini API 無料枠 | Gemini 3.8 Flash は1日20リクエスト。送信内容は Google の製品改善に使われる | まとめ登録1回＝1リクエスト。上限に達したら Flash-Lite で再試行し、それも上限なら手入力に切り替える |
+| OpenAI（gpt-6-luna） | 無料枠なし。入力 $0.10・出力 $0.50／100万トークン | まとめ登録1回＝1リクエスト。ダッシュボードで月の使用上限を設定しておく。上限に達したら手入力に切り替える |
+| TypeSafe（Jev） | 入力 $0.042／100万トークン、出力は無料。日本語は英語より精度が低い | 商品1点につき1リクエスト。判定に失敗したら一般名の一致か新しい品目の提案で代用する |
 | Expo Free | EAS Build は月15回（iOS・Android それぞれ） | 開発ビルドを使い回し、配布用ビルドは必要なときだけ作る |
 
 ## 構成

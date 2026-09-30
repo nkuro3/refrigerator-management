@@ -1,58 +1,103 @@
 // まとめ登録: レシートと実物の写真から商品を特定する
 // POST { receiptPath: string | null, photoPaths: string[] }  （パスは photos バケット内）
 // 画像はアプリが先にアップロードし、ここでは呼び出したユーザーの権限でダウンロードする（RLS が効く）
+//
+// 1. 抽出: OpenAI gpt-6-luna が画像から商品名・個数・単価・冷凍・一般名を読み取る
+// 2. 判定: TypeSafe Jev が商品ごとに品目マスタのどれに当たるかを選ぶ（該当なしなら 1 の提案を新しい品目にする）
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
-import { buildUserPrompt, CATEGORY_NAMES, RESPONSE_SCHEMA, SYSTEM_INSTRUCTION } from "./prompt.ts";
-import { extractOutputText, type Master, normalizeAnalysis } from "./normalize.ts";
+import { buildJevRequest, interpretJevAnswers, type JevAnswer, type Judgement, type Master } from "./jev.ts";
+import { extractResponsesText, normalizeExtraction, resolveCandidate } from "./normalize.ts";
+import { buildUserText, CATEGORY_NAMES, EXTRACTION_INSTRUCTION, EXTRACTION_SCHEMA } from "./prompt.ts";
 
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const PRIMARY_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.8-flash";
-// 無料枠の上限（1日20回）に達したときの切り替え先
-const FALLBACK_MODEL = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? "gemini-3.5-flash-lite";
+const OPENAI_URL = "https://api.openai.com/v1/responses";
+const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-6-luna";
+const JEV_URL = "https://api.typesafe.ai/v1/systemone";
+const JEV_MODEL = Deno.env.get("JEV_MODEL") ?? "jev-latest";
 const MAX_PHOTOS = 4;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-class GeminiError extends Error {
+class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
 }
 
-// ネットワークエラーや JSON の解析失敗も GeminiError(502) にそろえ、予備モデルで再試行できるようにする
-async function callGemini(model: string, input: unknown[], withThinkingLevel: boolean): Promise<unknown> {
+// ---------- 1. 抽出（gpt-6-luna） ----------
+async function extract(images: string[], hasReceipt: boolean, photoCount: number): Promise<unknown> {
+  let res: Response;
   try {
-    return await requestGemini(model, input, withThinkingLevel);
+    res = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${Deno.env.get("OPENAI_API_KEY") ?? ""}`,
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        input: [
+          { role: "system", content: EXTRACTION_INSTRUCTION },
+          {
+            role: "user",
+            content: [
+              { type: "input_text", text: buildUserText(hasReceipt, photoCount) },
+              ...images.map((b64) => ({ type: "input_image", image_url: `data:image/jpeg;base64,${b64}` })),
+            ],
+          },
+        ],
+        reasoning: { effort: "low" },
+        text: {
+          format: { type: "json_schema", name: "purchase_extraction", strict: true, schema: EXTRACTION_SCHEMA },
+        },
+        store: false,
+      }),
+    });
   } catch (e) {
-    if (e instanceof GeminiError) throw e;
-    throw new GeminiError(502, `${model}: ${e instanceof Error ? e.message : String(e)}`);
+    throw new ApiError(502, `openai: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (!res.ok) throw new ApiError(res.status, `openai: ${res.status} ${(await res.text()).slice(0, 500)}`);
+  const text = extractResponsesText(await res.json());
+  if (!text) throw new ApiError(502, "openai: empty or refused output");
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ApiError(502, "openai: invalid json output");
   }
 }
 
-async function requestGemini(model: string, input: unknown[], withThinkingLevel: boolean): Promise<unknown> {
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": Deno.env.get("GEMINI_API_KEY") ?? "",
-    },
-    body: JSON.stringify({
-      model,
-      system_instruction: SYSTEM_INSTRUCTION,
-      input,
-      ...(withThinkingLevel ? { generation_config: { thinking_level: "low" } } : {}),
-      response_format: { type: "text", mime_type: "application/json", schema: RESPONSE_SCHEMA },
-      store: false,
-    }),
-  });
-  if (!res.ok) {
-    throw new GeminiError(res.status, `${model}: ${res.status} ${(await res.text()).slice(0, 500)}`);
+// ---------- 2. 判定（Jev） ----------
+async function judge(
+  item: Parameters<typeof buildJevRequest>[0],
+  masters: Master[],
+): Promise<Judgement | null> {
+  const { request, index } = buildJevRequest(item, masters, CATEGORY_NAMES, JEV_MODEL);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(JEV_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("TYPESAFE_API_KEY") ?? ""}`,
+        },
+        body: JSON.stringify(request),
+      });
+      if (res.status === 429 || res.status === 529 || res.status >= 500) {
+        await new Promise((r) => setTimeout(r, 300 * 2 ** attempt)); // 混雑時は少し待って再試行
+        continue;
+      }
+      if (!res.ok) {
+        console.error("jev failed", res.status, (await res.text()).slice(0, 500));
+        return null;
+      }
+      const body = await res.json() as { answers?: Record<string, JevAnswer> };
+      return interpretJevAnswers(body.answers, index, CATEGORY_NAMES);
+    } catch (e) {
+      console.error("jev error", e);
+    }
   }
-  const text = extractOutputText(await res.json());
-  if (!text) throw new GeminiError(502, `${model}: empty output`);
-  return JSON.parse(text);
+  return null; // 判定できなかった場合は、一般名の一致か新しい品目の提案で代用する
 }
 
 Deno.serve(async (req) => {
@@ -93,40 +138,21 @@ Deno.serve(async (req) => {
   if (masterError) return json({ error: masterError.message }, 500);
   const masters = (masterRows ?? []) as Master[];
 
-  const input = [
-    {
-      type: "text",
-      text: buildUserPrompt(
-        masters.map((m) => ({ name: m.name, category: CATEGORY_NAMES[m.category_id - 1] ?? "その他", aliases: m.aliases })),
-        receiptPath !== null,
-        photoPaths.length,
-      ),
-    },
-    ...images.map((data) => ({ type: "image", data, mime_type: "image/jpeg" })),
-  ];
-
   let raw: unknown;
-  let model = PRIMARY_MODEL;
   try {
-    raw = await callGemini(PRIMARY_MODEL, input, true);
+    raw = await extract(images, receiptPath !== null, photoPaths.length);
   } catch (e) {
-    // 上限到達（429）や一時的な失敗（5xx）は軽いモデルで再試行する
-    const retryable = e instanceof GeminiError && (e.status === 429 || e.status >= 500);
-    if (!retryable) {
-      console.error(e);
-      return json({ error: "analysis failed" }, 502);
-    }
-    try {
-      model = FALLBACK_MODEL;
-      raw = await callGemini(FALLBACK_MODEL, input, false);
-    } catch (e2) {
-      console.error(e, e2);
-      const limited = e2 instanceof GeminiError && e2.status === 429;
-      return json({ error: limited ? "rate_limited" : "analysis failed" }, limited ? 429 : 502);
-    }
+    console.error(e);
+    const limited = e instanceof ApiError && e.status === 429; // 利用上限・残高不足も 429 で返る
+    return json({ error: limited ? "rate_limited" : "analysis failed" }, limited ? 429 : 502);
   }
 
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10); // 日本時間
-  const result = normalizeAnalysis(raw, masters, CATEGORY_NAMES, today);
-  return json({ ...result, model });
+  const extraction = normalizeExtraction(raw, CATEGORY_NAMES, today);
+
+  // 商品ごとに並列で判定する
+  const judgements = await Promise.all(extraction.items.map((item) => judge(item, masters)));
+  const items = extraction.items.map((item, i) => resolveCandidate(item, judgements[i] ?? null, masters));
+
+  return json({ purchasedOn: extraction.purchasedOn, items, model: `${OPENAI_MODEL} + ${JEV_MODEL}` });
 });
