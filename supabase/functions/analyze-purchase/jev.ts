@@ -2,13 +2,21 @@
 // Choice の選択肢は1問255個までなので、「カテゴリ」と「カテゴリごとの品目」の質問を1回の呼び出しでまとめて投げる
 // （Jev は1回の呼び出しの中で複数の質問を並列に答える）
 
-export type Master = { id: string; name: string; aliases: string[]; category_id: number };
+export type Master = { id: string; name: string; aliases: string[]; category_id: number; household_id?: string | null };
 
 export type ExtractedForJudge = {
   name: string;
   receiptText: string | null;
   genericName: string;
   isFrozen: boolean;
+  categoryHint?: string; // 抽出（gpt-6-luna）が見立てたカテゴリ
+};
+
+// 取り違えやすいカテゴリの補足
+const CATEGORY_NOTES: Record<string, string> = {
+  調味料: "料理酒・みりん・料理用ワインなど、料理に使う酒類もここ",
+  飲料: "そのまま飲むもの。料理酒・みりんなど料理に使う酒類は含まない",
+  "惣菜・加工品": "調理済みの食品、冷凍食品、缶詰、練り物",
 };
 
 export const NONE_KEY = "該当なし";
@@ -44,7 +52,8 @@ export function buildJevRequest(
   const categoryCriteria: Record<string, string> = {};
   categoryNames.forEach((name, i) => {
     const examples = (byCategory.get(i + 1) ?? []).slice(0, 12).map((m) => m.name).join("、");
-    categoryCriteria[name] = examples ? `例：${examples}` : name;
+    const note = CATEGORY_NOTES[name] ? `${CATEGORY_NOTES[name]}。` : "";
+    categoryCriteria[name] = examples ? `${note}例：${examples}` : note || name;
   });
   questions.category = {
     type: "choice",
@@ -77,6 +86,7 @@ export function buildJevRequest(
     冷凍食品: item.isFrozen ? "はい" : "いいえ",
   };
   if (item.receiptText) state["レシートの表記"] = item.receiptText;
+  if (item.categoryHint) state["カテゴリの見立て"] = item.categoryHint;
 
   return { request: { model, state, questions }, index };
 }

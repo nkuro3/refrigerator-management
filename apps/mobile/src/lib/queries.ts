@@ -216,25 +216,85 @@ export type NewItemInput = {
   categoryId: number;
   shelfDays: number;
   frozenShelfDays: number | null;
+  aliases?: string[];
 };
+
+const ITEM_SELECT = "id, household_id, category_id, name, aliases, shelf_days, frozen_shelf_days";
+
+// 同じ名前の品目がすでにある場合などのエラーを、画面で分かる文言にする
+function itemError(message: string): Error {
+  if (message.includes("item_masters_household_name_key") || message.includes("duplicate key")) {
+    return new Error("同じ名前の品目がすでにあります");
+  }
+  if (message.includes("foreign key") || message.includes("violates")) {
+    return new Error("在庫・履歴・買い物リストで使われているため削除できません");
+  }
+  return new Error(message);
+}
 
 export function useCreateItemMaster() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: async (input: NewItemInput) =>
-      unwrap(
-        await supabase
-          .from("item_masters")
-          .insert({
-            household_id: input.householdId,
-            name: input.name.trim(),
-            category_id: input.categoryId,
-            shelf_days: input.shelfDays,
-            frozen_shelf_days: input.frozenShelfDays,
-          })
-          .select("id, household_id, category_id, name, aliases, shelf_days, frozen_shelf_days")
-          .single(),
-      ) as ItemMaster,
+    mutationFn: async (input: NewItemInput) => {
+      const { data, error } = await supabase
+        .from("item_masters")
+        .insert({
+          household_id: input.householdId,
+          name: input.name.trim(),
+          category_id: input.categoryId,
+          shelf_days: input.shelfDays,
+          frozen_shelf_days: input.frozenShelfDays,
+          aliases: input.aliases ?? [],
+        })
+        .select(ITEM_SELECT)
+        .single();
+      if (error) throw itemError(error.message);
+      return data as ItemMaster;
+    },
+    onSuccess: () => invalidate(keys.itemMasters),
+  });
+}
+
+export type ItemUpdateInput = {
+  id: string;
+  name: string;
+  categoryId: number;
+  shelfDays: number;
+  frozenShelfDays: number | null;
+  aliases: string[];
+};
+
+// 世帯で追加した品目のみ更新できる（共通の品目は RLS で拒否される）
+export function useUpdateItemMaster() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: async (input: ItemUpdateInput) => {
+      const { data, error } = await supabase
+        .from("item_masters")
+        .update({
+          name: input.name.trim(),
+          category_id: input.categoryId,
+          shelf_days: input.shelfDays,
+          frozen_shelf_days: input.frozenShelfDays,
+          aliases: input.aliases,
+        })
+        .eq("id", input.id)
+        .select(ITEM_SELECT)
+        .single();
+      if (error) throw itemError(error.message);
+      return data as ItemMaster;
+    },
+    onSuccess: () => invalidate(keys.itemMasters, keys.products, keys.shopping),
+  });
+}
+
+export function useDeleteItemMaster() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("item_masters").delete().eq("id", id);
+      if (error) throw itemError(error.message);
+    },
     onSuccess: () => invalidate(keys.itemMasters),
   });
 }

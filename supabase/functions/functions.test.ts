@@ -4,6 +4,7 @@ import {
   extractResponsesText,
   type Master,
   normalizeExtraction,
+  presetMasterId,
   resolveCandidate,
 } from "./analyze-purchase/normalize";
 import { CATEGORY_NAMES, EXTRACTION_SCHEMA } from "./analyze-purchase/prompt";
@@ -129,6 +130,49 @@ describe("resolveCandidate", () => {
       newItem: { name: "ぬか漬けの素", categoryId: 8, shelfDays: 90 },
       confidence: "high",
     });
+  });
+});
+
+describe("品目の事前判定（学習・完全一致）", () => {
+  const withSake: Master[] = [
+    ...masters,
+    { id: "sake", name: "日本酒", aliases: ["清酒"], category_id: 12 },
+    { id: "ryorishu", name: "料理酒", aliases: ["料理清酒", "酒（料理用）"], category_id: 8 },
+  ];
+  const extract = (over: Record<string, unknown>) =>
+    normalizeExtraction({ items: [rawItem(over)] }, CATEGORY_NAMES, TODAY).items[0]!;
+
+  it("料理酒は一般名の完全一致で調味料の料理酒になり、Jev に聞かない", () => {
+    const item = extract({ name: "タカラ本料理清酒 500ml", generic_name: "料理酒", category: "調味料" });
+    expect(presetMasterId(item, new Map(), withSake)).toBe("ryorishu");
+    expect(resolveCandidate(item, null, withSake, "ryorishu")).toMatchObject({ itemMasterId: "ryorishu", confidence: "high" });
+  });
+
+  it("家族が直した対応（学習）を最優先にする", () => {
+    const item = extract({ name: "タカラ本料理清酒 500ml", generic_name: "日本酒", category: "飲料" });
+    expect(presetMasterId(item, new Map(), withSake)).toBe("sake"); // 学習がなければ一般名どおり
+    expect(presetMasterId(item, new Map([["タカラ本料理清酒 500ml", "ryorishu"]]), withSake)).toBe("ryorishu");
+  });
+
+  it("世帯で追加した同名の品目を共通品目より優先する", () => {
+    const item = extract({ name: "米酢", generic_name: "酢" });
+    const own: Master = { id: "own-vin", name: "酢", aliases: [], category_id: 8, household_id: "h" };
+    expect(presetMasterId(item, new Map(), [...masters, own])).toBe("own-vin");
+  });
+
+  it("一致しなければ null（Jev に聞く）", () => {
+    const item = extract({ name: "ぬか漬けの素", generic_name: "ぬか漬けの素" });
+    expect(presetMasterId(item, new Map(), masters)).toBeNull();
+  });
+
+  it("Jev の質問に、料理用の酒は調味料という補足と抽出時のカテゴリを入れる", () => {
+    const { request } = buildJevRequest(
+      { name: "料理清酒", receiptText: null, genericName: "料理酒", isFrozen: false, categoryHint: "調味料" },
+      withSake, CATEGORY_NAMES, "jev-latest",
+    );
+    expect(request.questions.category!.criteria["調味料"]).toContain("料理酒");
+    expect(request.questions.category!.criteria["飲料"]).toContain("含まない");
+    expect(request.state["カテゴリの見立て"]).toBe("調味料");
   });
 });
 

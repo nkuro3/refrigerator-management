@@ -36,6 +36,7 @@ export type ExtractedItem = {
   name: string;
   receiptText: string | null;
   genericName: string;
+  categoryHint: string; // 抽出時に見立てたカテゴリ名
   proposal: NewItemProposal; // 該当する品目がなかったときの新しい品目の提案
   quantity: number;
   unitPrice: number | null;
@@ -88,6 +89,7 @@ export function normalizeExtraction(raw: unknown, categoryNames: readonly string
       name: name.slice(0, 80),
       receiptText: str(it.receipt_text),
       genericName,
+      categoryHint: catIndex >= 0 ? categoryNames[catIndex]! : "その他",
       proposal: {
         name: genericName,
         categoryId: catIndex >= 0 ? catIndex + 1 : otherCategoryId,
@@ -105,10 +107,22 @@ export function normalizeExtraction(raw: unknown, categoryNames: readonly string
   return { purchasedOn, items };
 }
 
-// 品目名・別名の完全一致で既存品目を探す（Jev が使えないときの代わり、新規提案が既存品目と同名のときの救済）
+// 品目名・別名の完全一致で既存品目を探す
+// 世帯で追加した品目を共通品目より優先する（household_id を持つ Master は後ろに並ぶことがあるため明示的に）
 export function findMasterByName(name: string, masters: Master[]): Master | undefined {
   const n = name.replace(/\s/g, "");
-  return masters.find((m) => m.name === n || m.aliases.includes(n));
+  if (!n) return undefined;
+  const hits = masters.filter((m) => m.name === n || m.aliases.includes(n));
+  return hits.find((m) => m.household_id) ?? hits[0];
+}
+
+// Jev に聞く前に決められる品目
+// 1. 家族が確定した「商品名 → 品目」の対応（learned）
+// 2. 一般名・商品名が品目名か別名に完全一致
+export function presetMasterId(item: ExtractedItem, learned: Map<string, string>, masters: Master[]): string | null {
+  const fromLearned = learned.get(item.name);
+  if (fromLearned && masters.some((m) => m.id === fromLearned)) return fromLearned;
+  return (findMasterByName(item.genericName, masters) ?? findMasterByName(item.name, masters))?.id ?? null;
 }
 
 const RANK = { high: 2, medium: 1, low: 0 } as const;
@@ -120,12 +134,20 @@ function judgementLevel(confidence: number): Candidate["confidence"] {
   return "low";
 }
 
-// 抽出1件と Jev の判定（なければ null）から、確認画面に出す候補を作る
-export function resolveCandidate(item: ExtractedItem, judgement: Judgement | null, masters: Master[]): Candidate {
+// 抽出1件と、事前に決まった品目（preset）または Jev の判定から、確認画面に出す候補を作る
+export function resolveCandidate(
+  item: ExtractedItem,
+  judgement: Judgement | null,
+  masters: Master[],
+  preset: string | null = null,
+): Candidate {
   let itemMasterId: string | null = null;
   let judged: Candidate["confidence"];
 
-  if (judgement?.itemMasterId && masters.some((m) => m.id === judgement.itemMasterId)) {
+  if (preset && masters.some((m) => m.id === preset)) {
+    itemMasterId = preset;
+    judged = "high";
+  } else if (judgement?.itemMasterId && masters.some((m) => m.id === judgement.itemMasterId)) {
     itemMasterId = judgement.itemMasterId;
     judged = judgementLevel(judgement.confidence);
   } else {

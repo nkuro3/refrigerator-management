@@ -55,6 +55,8 @@ function RootNavigator() {
         <Stack.Screen name="register/index" options={{ title: "まとめて登録" }} />
         <Stack.Screen name="register/confirm" options={{ title: "登録内容の確認" }} />
         <Stack.Screen name="register/manual" options={{ title: "手入力で登録" }} />
+        <Stack.Screen name="items/index" options={{ title: "品目の管理" }} />
+        <Stack.Screen name="items/[id]" options={{ title: "品目" }} />
       </Stack.Protected>
     </Stack>
   );

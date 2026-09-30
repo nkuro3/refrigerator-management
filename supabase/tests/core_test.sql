@@ -191,4 +191,26 @@ exception when others then
 end $$;
 reset role;
 
+
+-- ---- 品目の学習（20260930000002_item_learning.sql） ----
+select pg_temp.assert(public.normalize_product_name('タカラ　本料理清酒 ５００ｍｌ') = public.normalize_product_name('タカラ本料理清酒'), '容量・全角・空白の違いを吸収する');
+select pg_temp.assert((select '料理清酒' = any(aliases) from public.item_masters where name = '料理酒' and household_id is null), '料理酒に別名が足されている');
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+select id as sake from public.item_masters where name = '日本酒' and household_id is null \gset
+select id as ryorishu from public.item_masters where name = '料理酒' and household_id is null \gset
+-- AI が日本酒と判定したまま登録 → 覚える
+select public.register_purchase(jsonb_build_object('items', jsonb_build_array(
+  jsonb_build_object('item_master_id', :'sake', 'name', 'タカラ本料理清酒 500ml', 'quantity', 1))));
+select pg_temp.assert((select item_master_id from public.lookup_item_mappings(array['タカラ本料理清酒']) limit 1) = :'sake', '登録した品目を覚える');
+-- 商品画面で料理酒に直す → 覚え直す
+update public.products set item_master_id = :'ryorishu' where name = 'タカラ本料理清酒 500ml';
+select pg_temp.assert((select item_master_id from public.lookup_item_mappings(array['タカラ 本料理清酒 1000ml']) limit 1) = :'ryorishu', '品目を直すと覚え直す（容量違いにも効く）');
+select pg_temp.assert((select count(*) from public.lookup_item_mappings(array['知らない商品'])) = 0, '覚えていない商品は返さない');
+-- 別の世帯の学習は見えない
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', false);
+select pg_temp.assert((select count(*) from public.lookup_item_mappings(array['タカラ本料理清酒'])) = 0, '別世帯の学習は使わない');
+reset role;
+
 \echo 'ALL TESTS PASSED'

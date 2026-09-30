@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { router } from "expo-router";
 import { Platform, Share, Text, View } from "react-native";
 import { Button, Card, Chip, ErrorText, Field, Screen, SectionTitle, styles } from "../../components/ui";
 import { useAuth, useHousehold } from "../../lib/auth";
@@ -111,6 +112,12 @@ export default function Settings() {
           )}
         </Card>
       )}
+
+      <Card>
+        <SectionTitle>品目の管理</SectionTitle>
+        <Text style={styles.muted}>品目の追加・編集や、別名（レシートの略称など）の登録ができます。</Text>
+        <Button title="品目の一覧を開く" variant="secondary" small onPress={() => router.push("/items")} />
+      </Card>
 
       <Card>
         <SectionTitle>使い切りアラートの時刻</SectionTitle>

@@ -14,4 +14,5 @@ psql "$TEST_URL" -q -v ON_ERROR_STOP=1 -f migrations/20260928000001_core.sql
 psql "$TEST_URL" -q -v ON_ERROR_STOP=1 -f migrations/20260928000004_item_master_seed.sql
 psql "$TEST_URL" -q -v ON_ERROR_STOP=1 -f migrations/20260928000006_integrity.sql
 psql "$TEST_URL" -q -v ON_ERROR_STOP=1 -f migrations/20260930000001_web_push.sql
+psql "$TEST_URL" -q -v ON_ERROR_STOP=1 -f migrations/20260930000002_item_learning.sql
 psql "$TEST_URL" -q -v ON_ERROR_STOP=1 -f tests/core_test.sql

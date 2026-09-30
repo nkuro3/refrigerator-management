@@ -43,6 +43,14 @@ export default function ItemDetail() {
             loading={addToShopping.isPending}
             onPress={() => master && addToShopping.mutate({ itemMasterId: master.id })}
           />
+          {master && (
+            <Button
+              title={master.household_id ? "品目の設定を編集" : "品目の設定を見る"}
+              variant="ghost"
+              small
+              onPress={() => router.push({ pathname: "/items/[id]", params: { id: master.id } })}
+            />
+          )}
         </Card>
       </View>
       {groups.length === 0 ? (

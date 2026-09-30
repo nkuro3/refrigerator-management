@@ -8,7 +8,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 import { corsHeaders } from "./cors.ts";
 import { buildJevRequest, interpretJevAnswers, type JevAnswer, type Judgement, type Master } from "./jev.ts";
-import { extractResponsesText, normalizeExtraction, resolveCandidate } from "./normalize.ts";
+import { extractResponsesText, normalizeExtraction, presetMasterId, resolveCandidate } from "./normalize.ts";
 import { buildUserText, CATEGORY_NAMES, EXTRACTION_INSTRUCTION, EXTRACTION_SCHEMA } from "./prompt.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
   // 品目マスタ（共通＋世帯）
   const { data: masterRows, error: masterError } = await supabase
     .from("item_masters")
-    .select("id, name, aliases, category_id")
+    .select("id, name, aliases, category_id, household_id")
     .order("category_id")
     .order("name");
   if (masterError) return json({ error: masterError.message }, 500);
@@ -152,9 +152,20 @@ Deno.serve(async (req) => {
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10); // 日本時間
   const extraction = normalizeExtraction(raw, CATEGORY_NAMES, today);
 
-  // 商品ごとに並列で判定する
-  const judgements = await Promise.all(extraction.items.map((item) => judge(item, masters)));
-  const items = extraction.items.map((item, i) => resolveCandidate(item, judgements[i] ?? null, masters));
+  // 家族が過去に確定した「商品名 → 品目」（取得に失敗しても判定は続ける）
+  const learned = new Map<string, string>();
+  const { data: learnedRows, error: learnedError } = await supabase.rpc("lookup_item_mappings", {
+    p_names: extraction.items.map((i) => i.name),
+  });
+  if (learnedError) console.error("lookup_item_mappings failed", learnedError.message);
+  for (const r of (learnedRows ?? []) as { name: string; item_master_id: string }[]) learned.set(r.name, r.item_master_id);
+
+  // 学習・完全一致で決まらなかった商品だけ、並列で Jev に判定させる
+  const presets = extraction.items.map((item) => presetMasterId(item, learned, masters));
+  const judgements = await Promise.all(
+    extraction.items.map((item, i) => (presets[i] ? null : judge(item, masters))),
+  );
+  const items = extraction.items.map((item, i) => resolveCandidate(item, judgements[i] ?? null, masters, presets[i]));
 
   return json({ purchasedOn: extraction.purchasedOn, items, model: `${OPENAI_MODEL} + ${JEV_MODEL}` });
 });
