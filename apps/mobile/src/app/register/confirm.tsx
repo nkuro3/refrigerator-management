@@ -70,10 +70,13 @@ export default function RegisterConfirm() {
     }
   };
 
-  const cancel = async () => {
-    await removePhotos([draft.receiptPath, ...draft.photoPaths].filter((p): p is string => !!p));
+  // 確認画面へは replace で来るので back() では戻り先がない（Web・再読み込み後）。先に在庫画面へ移り、写真の削除は裏で行う
+  const cancel = () => {
+    const paths = [draft.receiptPath, ...draft.photoPaths].filter((p): p is string => !!p);
+    if (router.canDismiss()) router.dismissAll();
+    router.replace("/");
     draftStore.set(null);
-    router.back();
+    void removePhotos(paths).catch(() => {});
   };
 
   const picking = draft.items.find((d) => d.key === pickingKey);
