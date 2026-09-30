@@ -171,4 +171,24 @@ select public.register_push_token('ExponentPushToken[test]', 'android');
 select pg_temp.assert((select user_id from public.push_tokens where token = 'ExponentPushToken[test]') = '00000000-0000-0000-0000-00000000000b', '同じ端末で別のユーザーがログインすると持ち主が変わる');
 reset role;
 
+
+-- ---- Web Push の購読（20260930000001_web_push.sql） ----
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+select public.register_web_push('https://web.push.apple.com/abc', 'p256dh-a', 'auth-a');
+select pg_temp.assert((select count(*) from public.web_push_subscriptions) = 1, 'Web Push の購読を登録できる');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+select pg_temp.assert((select count(*) from public.web_push_subscriptions) = 0, '他人の購読は見えない');
+select public.register_web_push('https://web.push.apple.com/abc', 'p256dh-b', 'auth-b');
+select pg_temp.assert((select count(*) from public.web_push_subscriptions) = 1, '同じブラウザで別のユーザーが登録すると持ち主が変わる');
+do $$
+begin
+  perform public.register_web_push('http://evil.example/x', 'k', 'a');
+  raise exception 'ASSERT FAILED: https 以外の endpoint を登録できた';
+exception when others then
+  if sqlerrm like 'ASSERT FAILED%' then raise; end if;
+  raise notice 'ok: https 以外の endpoint は拒否 (%)', sqlerrm;
+end $$;
+reset role;
+
 \echo 'ALL TESTS PASSED'

@@ -1,12 +1,11 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import * as Notifications from "expo-notifications";
-import { router, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { colors, Loading } from "../components/ui";
 import { AuthProvider, useAuth } from "../lib/auth";
 import { draftStore } from "../lib/draft-store";
-import { registerPushToken } from "../lib/push";
+import { registerPushToken, useNotificationNavigation } from "../lib/push";
 import { useRealtimeSync } from "../lib/queries";
 
 function RootNavigator() {
@@ -29,14 +28,7 @@ function RootNavigator() {
     if (ready) void registerPushToken();
   }, [ready, userId]);
 
-  // 使い切りアラートの通知をタップしたらダッシュボードを開く（アプリ未起動時のタップも含む）
-  const lastResponse = Notifications.useLastNotificationResponse();
-  useEffect(() => {
-    if (ready && lastResponse) {
-      router.navigate("/dashboard");
-      Notifications.clearLastNotificationResponse();
-    }
-  }, [ready, lastResponse]);
+  useNotificationNavigation(ready);
 
   if (loading) return <Loading />;
 

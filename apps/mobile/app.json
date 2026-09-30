@@ -21,7 +21,13 @@
       "package": "com.nkuro3.fridge"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "name": "冷蔵庫",
+      "shortName": "冷蔵庫",
+      "lang": "ja",
+      "themeColor": "#2F7D5B",
+      "backgroundColor": "#F6F7F5"
     },
     "plugins": [
       "expo-router",

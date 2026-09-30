@@ -1,12 +1,22 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, Share, Text, View } from "react-native";
+import { Share, Text, View } from "react-native";
 import { Button, Card, Chip, ErrorText, Field, Screen, SectionTitle, styles } from "../../components/ui";
 import { useAuth, useHousehold } from "../../lib/auth";
-import { unregisterPushToken } from "../../lib/push";
+import { confirmAction } from "../../lib/confirm";
+import { enablePush, getPushStatus, type PushStatus, unregisterPushToken } from "../../lib/push";
 import { useMembers } from "../../lib/queries";
 import { supabase } from "../../lib/supabase";
 
 const HOURS = [6, 7, 8, 9, 12, 18, 20];
+
+const PUSH_MESSAGES: Record<Exclude<PushStatus, "native">, string> = {
+  "needs-install": "iPhone で通知を受け取るには、Safari の共有ボタンから「ホーム画面に追加」し、ホーム画面のアイコンから開いてください。",
+  default: "期限が近いものを、毎日この端末に通知します。",
+  granted: "この端末に通知が届きます。",
+  denied: "通知がブロックされています。端末の設定（iPhone は 設定 → 通知）から許可してください。",
+  unsupported: "このブラウザは通知に対応していません。",
+};
 
 export default function Settings() {
   const { profile, refresh } = useAuth();
@@ -16,6 +26,20 @@ export default function Settings() {
   const [name, setName] = useState(profile?.display_name ?? "");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const pushStatus = useQuery({ queryKey: ["push-status"], queryFn: getPushStatus });
+  const [enabling, setEnabling] = useState(false);
+
+  const turnOnPush = async () => {
+    setEnabling(true);
+    setError(null);
+    try {
+      await enablePush();
+    } catch (e) {
+      setError(e);
+    }
+    await pushStatus.refetch();
+    setEnabling(false);
+  };
 
   const run = async (fn: () => PromiseLike<{ error: { message: string } | null }>) => {
     setError(null);
@@ -54,6 +78,23 @@ export default function Settings() {
         )}
       </Card>
 
+      {pushStatus.data && pushStatus.data !== "native" && (
+        <Card>
+          <SectionTitle>通知</SectionTitle>
+          <Text style={styles.muted}>{PUSH_MESSAGES[pushStatus.data]}</Text>
+          {(pushStatus.data === "default" || pushStatus.data === "granted") && (
+            <Button
+              title={pushStatus.data === "granted" ? "この端末で通知を受け取っています" : "この端末で通知を受け取る"}
+              variant={pushStatus.data === "granted" ? "secondary" : "primary"}
+              small
+              disabled={pushStatus.data === "granted"}
+              loading={enabling}
+              onPress={turnOnPush}
+            />
+          )}
+        </Card>
+      )}
+
       <Card>
         <SectionTitle>使い切りアラートの時刻</SectionTitle>
         <Text style={styles.muted}>期限3日以内と解凍済みのものを、毎日この時刻に通知します。</Text>
@@ -86,10 +127,9 @@ export default function Settings() {
         title="ログアウト"
         variant="danger"
         onPress={() =>
-          Alert.alert("ログアウトしますか？", undefined, [
-            { text: "キャンセル", style: "cancel" },
-            { text: "ログアウト", style: "destructive", onPress: () => void unregisterPushToken().finally(() => supabase.auth.signOut()) },
-          ])}
+          confirmAction("ログアウトしますか？", "ログアウト", () => {
+            void unregisterPushToken().finally(() => supabase.auth.signOut());
+          })}
       />
     </Screen>
   );

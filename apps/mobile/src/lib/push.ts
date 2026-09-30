@@ -1,7 +1,9 @@
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
 import { Platform } from "react-native";
+import { router } from "expo-router";
 import { supabase } from "./supabase";
 
 Notifications.setNotificationHandler({
@@ -57,4 +59,28 @@ export async function unregisterPushToken(): Promise<void> {
   if (!registeredToken) return;
   await supabase.from("push_tokens").delete().eq("token", registeredToken);
   registeredToken = null;
+}
+
+// ---- Web 版（push.web.ts）と共通のインターフェース ----
+// ネイティブアプリでは通知の許可はログイン後に自動で求めるので、設定画面での操作は不要
+export type PushStatus = "unsupported" | "needs-install" | "default" | "granted" | "denied" | "native";
+
+export async function getPushStatus(): Promise<PushStatus> {
+  return "native";
+}
+
+export async function enablePush(): Promise<PushStatus> {
+  await registerPushToken();
+  return "native";
+}
+
+// 使い切りアラートの通知をタップしたらダッシュボードを開く（アプリ未起動時のタップも含む）
+export function useNotificationNavigation(ready: boolean): void {
+  const lastResponse = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (ready && lastResponse) {
+      router.navigate("/dashboard");
+      Notifications.clearLastNotificationResponse();
+    }
+  }, [ready, lastResponse]);
 }

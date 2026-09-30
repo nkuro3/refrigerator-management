@@ -6,6 +6,7 @@
 // 2. 判定: TypeSafe Jev が商品ごとに品目マスタのどれに当たるかを選ぶ（該当なしなら 1 の提案を新しい品目にする）
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
+import { corsHeaders } from "./cors.ts";
 import { buildJevRequest, interpretJevAnswers, type JevAnswer, type Judgement, type Master } from "./jev.ts";
 import { extractResponsesText, normalizeExtraction, resolveCandidate } from "./normalize.ts";
 import { buildUserText, CATEGORY_NAMES, EXTRACTION_INSTRUCTION, EXTRACTION_SCHEMA } from "./prompt.ts";
@@ -17,7 +18,7 @@ const JEV_MODEL = Deno.env.get("JEV_MODEL") ?? "jev-latest";
 const MAX_PHOTOS = 4;
 
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -101,6 +102,7 @@ async function judge(
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
   const supabase = createClient(
