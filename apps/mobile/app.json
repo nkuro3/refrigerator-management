@@ -18,7 +18,10 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.nkuro3.fridge"
+      "package": "com.nkuro3.fridge",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -47,6 +50,13 @@
     "scheme": "fridge",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2a7cdfef-cef0-4b0c-8e94-78790d13ad0c"
+      }
+    },
+    "owner": "nkuro"
   }
 }
