@@ -9,7 +9,7 @@
 | `apps/mobile` | Expo（SDK 57・Expo Router）アプリ。Web 版（PWA）も同じコードから出力し Cloudflare Pages で公開する。Expo 固有のルールは `apps/mobile/AGENTS.md` |
 | `packages/shared` | アプリ用の型・表示ラベル・期限表示や並び替え・登録ペイロード生成（純粋関数＋Vitest） |
 | `supabase/migrations` | スキーマ・RLS・RPC・トリガー・初期品目マスタ |
-| `supabase/functions` | Edge Functions（Deno）: `analyze-purchase`（OpenAI gpt-6-luna で画像から抽出 → TypeSafe Jev で品目を判定）、`expiry-alerts`（毎時の使い切りアラート） |
+| `supabase/functions` | Edge Functions（Deno）: `analyze-purchase`（OpenAI gpt-6-luna で画像から抽出 → TypeSafe Jev で品目を判定）、`expiry-alerts`（毎時の使い切りアラート）、`change-notify`（家族が冷蔵庫を更新したら毎分まとめて通知）。送信処理は `_shared/push.ts` で共通 |
 | `supabase/tests` | ローカル Postgres でマイグレーションを検証するテスト |
 
 ## コマンド

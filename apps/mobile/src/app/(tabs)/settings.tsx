@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { router } from "expo-router";
-import { Platform, Share, Text, View } from "react-native";
-import { Button, Card, Chip, ErrorText, Field, Screen, SectionTitle, styles } from "../../components/ui";
+import { Platform, Share, Switch, Text, View } from "react-native";
+import { Button, Card, Chip, colors, ErrorText, Field, Screen, SectionTitle, styles } from "../../components/ui";
 import { useAuth, useHousehold } from "../../lib/auth";
 import { confirmAction } from "../../lib/confirm";
 import { inviteMessage, inviteUrl } from "../../lib/invite";
@@ -14,7 +14,7 @@ const HOURS = [6, 7, 8, 9, 12, 18, 20];
 
 const PUSH_MESSAGES: Record<Exclude<PushStatus, "native">, string> = {
   "needs-install": "iPhone で通知を受け取るには、Safari の共有ボタンから「ホーム画面に追加」し、ホーム画面のアイコンから開いてください。",
-  default: "期限が近いものを、毎日この端末に通知します。",
+  default: "期限が近いものや家族による冷蔵庫の更新を、この端末に通知します。",
   granted: "この端末に通知が届きます。",
   denied: "通知がブロックされています。端末の設定（iPhone は 設定 → 通知）から許可してください。",
   unsupported: "このブラウザは通知に対応していません。",
@@ -132,6 +132,20 @@ export default function Settings() {
             />
           ))}
         </View>
+      </Card>
+
+      <Card>
+        <SectionTitle>冷蔵庫の更新通知</SectionTitle>
+        <View style={[styles.row, { justifyContent: "space-between" }]}>
+          <Text style={[styles.body, { flex: 1 }]}>家族が登録・使い切り・解凍などをしたら通知する</Text>
+          <Switch
+            value={profile?.notify_changes ?? true}
+            disabled={busy}
+            onValueChange={(v) => run(() => supabase.from("profiles").update({ notify_changes: v }).eq("user_id", profile!.user_id))}
+            trackColor={{ true: colors.primary }}
+          />
+        </View>
+        <Text style={styles.muted}>1分以内の操作は1通にまとめて届きます。自分の操作は通知されません。</Text>
       </Card>
 
       <Card>

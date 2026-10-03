@@ -1,6 +1,6 @@
 # 冷蔵庫管理アプリ
 
-家族で冷蔵庫・食品ストックを共有するアプリです。レシートと買ってきた食品をまとめて撮影すると、AI が商品を読み取り、品目を判定して一括登録します。期限3日以内と解凍済みの食品は毎日プッシュ通知で知らせ、使い切った量・捨てた量をダッシュボードで確認できます。
+家族で冷蔵庫・食品ストックを共有するアプリです。レシートと買ってきた食品をまとめて撮影すると、AI が商品を読み取り、品目を判定して一括登録します。期限3日以内と解凍済みの食品は毎日プッシュ通知で知らせ、家族が冷蔵庫を更新したときも通知します。使い切った量・捨てた量をダッシュボードで確認できます。
 
 - 対応: Web 版（PWA。iPhone は Safari で開いて「ホーム画面に追加」）／ iOS・Android のネイティブアプリ（Expo）
 - バックエンド: Supabase（Postgres・Auth・Storage・Realtime・Edge Functions・pg_cron）
@@ -52,6 +52,7 @@ bun install
    bunx supabase secrets set OPENAI_API_KEY=<OpenAI の API キー> TYPESAFE_API_KEY=<TypeSafe の API キー> CRON_SECRET=<CRON_SECRET>
    bunx supabase functions deploy analyze-purchase
    bunx supabase functions deploy expiry-alerts
+   bunx supabase functions deploy change-notify
    ```
 
 ### 3. アプリ
@@ -138,6 +139,7 @@ git pull && bun run deploy
 2. 買い物から帰ったら「まとめて登録」でレシートと食品を撮影 → AI の判定結果を確認して登録
 3. 使い切ったら／捨てたら記録（買い物リストへの追加は必要なときにオンにする。その品目の最後の1つなら案内が出る）
 4. 毎朝（時刻は設定で変更可）期限3日以内と解凍済みの食品が通知される
+5. 家族が登録・使い切り・廃棄・冷凍／解凍・残量変更をすると、1分以内にまとめて通知される（自分の操作は通知されない。設定でオフにできる）
 
 ## 開発コマンド
 
@@ -164,7 +166,7 @@ PGURL=postgres://postgres@localhost:5432/postgres bun run test:db   # マイグ�
 apps/mobile          Expo アプリ（src/app が画面、src/lib がデータ取得、src/components が部品、public が Web 版の PWA 設定と Service Worker）
 packages/shared      型・表示ロジック・登録ペイロード生成
 supabase/migrations  スキーマ・RLS・RPC・トリガー・初期品目マスタ
-supabase/functions   analyze-purchase（AI 判定）、expiry-alerts（使い切りアラート）
+supabase/functions   analyze-purchase（AI 判定）、expiry-alerts（使い切りアラート）、change-notify（更新通知）、_shared（通知の送信）
 supabase/tests       マイグレーションのテスト
 supabase/data        初期品目マスタの元データ（CSV）
 supabase/scripts     VAPID 鍵の生成スクリプト

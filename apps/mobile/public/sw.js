@@ -1,5 +1,5 @@
-// Service Worker: 使い切りアラート（Web Push）の表示と、通知をタップしたときの画面遷移
-// 送信側は supabase/functions/expiry-alerts。ペイロードは { title, body, url }
+// Service Worker: プッシュ通知（使い切りアラート・冷蔵庫の更新通知）の表示と、通知をタップしたときの画面遷移
+// 送信側は supabase/functions/_shared/push.ts。ペイロードは { title, body, url, tag }
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -10,7 +10,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let data = { title: "冷蔵庫", body: "", url: "/dashboard" };
+  let data = { title: "冷蔵庫", body: "", url: "/dashboard", tag: "expiry-alert" };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch {
@@ -21,7 +21,7 @@ self.addEventListener("push", (event) => {
       body: data.body,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
-      tag: "expiry-alert", // 同じ日の通知は上書きして1件にまとめる
+      tag: data.tag, // 同じ tag の通知は上書きされる（使い切りアラートは常に最新の1件）
       data: { url: data.url },
     }),
   );

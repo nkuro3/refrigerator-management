@@ -8,6 +8,7 @@ import {
   resolveCandidate,
 } from "./analyze-purchase/normalize";
 import { CATEGORY_NAMES, EXTRACTION_SCHEMA } from "./analyze-purchase/prompt";
+import { buildChangeMessage, type ChangeEvent, groupByActor } from "./change-notify/message";
 import { buildAlertMessage } from "./expiry-alerts/message";
 
 const masters: Master[] = [
@@ -200,5 +201,42 @@ describe("buildAlertMessage", () => {
   });
   it("対象がなければ通知しない", () => {
     expect(buildAlertMessage([])).toBeNull();
+  });
+});
+
+describe("冷蔵庫の更新通知の文面", () => {
+  let id = 0;
+  const ev = (over: Partial<ChangeEvent>): ChangeEvent => ({
+    event_id: ++id, household_id: "h1", actor_id: "riko", actor_name: "りこ", type: "created",
+    from_value: null, to_value: "unopened", item_name: "牛乳", ...over,
+  });
+
+  it("人ごとにまとめ、操作の種類ごとに品目を並べる", () => {
+    const batches = groupByActor([
+      ev({ item_name: "牛乳" }), ev({ item_name: "卵" }), ev({ item_name: "卵" }),
+      ev({ item_name: "豚肉" }), ev({ item_name: "納豆" }), ev({ item_name: "豆腐" }),
+      ev({ type: "ended", to_value: "used_up", item_name: "ヨーグルト" }),
+      ev({ type: "ended", to_value: "discarded:expired", item_name: "レタス" }),
+      ev({ type: "freeze_changed", to_value: "thawed", item_name: "鶏もも肉" }),
+      ev({ actor_id: "papa", actor_name: "パパ", type: "remaining_changed", to_value: "almost_empty", item_name: "醤油" }),
+    ]);
+    expect(batches).toHaveLength(2);
+    expect(buildChangeMessage(batches[0]!)).toEqual({
+      title: "りこさんが冷蔵庫を更新",
+      body: "登録：牛乳、卵×2、豚肉ほか2点／使い切り：ヨーグルト／廃棄：レタス／解凍：鶏もも肉",
+    });
+    expect(buildChangeMessage(batches[1]!)?.body).toBe("残りわずか：醤油");
+  });
+
+  it("期限の手修正・終了の取り消し・冷凍の解除は通知しない", () => {
+    const batches = groupByActor([
+      ev({ type: "expiry_edited" }), ev({ type: "end_undone" }), ev({ type: "freeze_changed", to_value: "none" }),
+    ]);
+    expect(batches).toHaveLength(0);
+  });
+
+  it("操作した人が分からないときは「家族」", () => {
+    const [b] = groupByActor([ev({ actor_id: null, actor_name: "家族" })]);
+    expect(buildChangeMessage(b!)?.title).toBe("家族が冷蔵庫を更新");
   });
 });

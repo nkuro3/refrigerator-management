@@ -74,12 +74,14 @@ export async function enablePush(): Promise<PushStatus> {
   return "native";
 }
 
-// 使い切りアラートの通知をタップしたらダッシュボードを開く（アプリ未起動時のタップも含む）
+// 通知をタップしたら、通知の url の画面を開く（アプリ未起動時のタップも含む）
+// 使い切りアラートはダッシュボード、冷蔵庫の更新通知は在庫一覧
 export function useNotificationNavigation(ready: boolean): void {
   const lastResponse = Notifications.useLastNotificationResponse();
   useEffect(() => {
     if (ready && lastResponse) {
-      router.navigate("/dashboard");
+      const url = lastResponse.notification.request.content.data?.url;
+      router.navigate(url === "/" ? "/" : "/dashboard");
       Notifications.clearLastNotificationResponse();
     }
   }, [ready, lastResponse]);

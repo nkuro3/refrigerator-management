@@ -2,7 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
-export type Profile = { user_id: string; display_name: string; notify_hour: number };
+export type Profile = { user_id: string; display_name: string; notify_hour: number; notify_changes: boolean };
 export type Household = { id: string; name: string };
 
 type AuthState = {
@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     const [{ data: p }, { data: m }] = await Promise.all([
-      supabase.from("profiles").select("user_id, display_name, notify_hour").eq("user_id", s.user.id).maybeSingle(),
+      supabase.from("profiles").select("user_id, display_name, notify_hour, notify_changes").eq("user_id", s.user.id).maybeSingle(),
       supabase.from("household_members").select("households(id, name)").eq("user_id", s.user.id).maybeSingle(),
     ]);
     setProfile(p as Profile | null);

@@ -213,4 +213,40 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c
 select pg_temp.assert((select count(*) from public.lookup_item_mappings(array['タカラ本料理清酒'])) = 0, '別世帯の学習は使わない');
 reset role;
 
+-- ---- 冷蔵庫の更新通知（20261003000001_change_notify.sql） ----
+update public.change_notify_cursor set last_event_id = (select max(id) from public.product_events);
+select pg_temp.assert((select notify_changes from public.profiles where user_id = '00000000-0000-0000-0000-00000000000a'), '更新通知は最初はオン');
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+do $$
+begin
+  perform 1 from public.change_notify_cursor;
+  raise exception 'ASSERT FAILED: カーソルがクライアントから見えた';
+exception when insufficient_privilege then
+  raise notice 'ok: カーソルはクライアントから見えない';
+end $$;
+do $$
+begin
+  perform public.claim_change_events();
+  raise exception 'ASSERT FAILED: クライアントからイベントを取り出せた';
+exception when insufficient_privilege then
+  raise notice 'ok: クライアントからは claim_change_events を呼べない';
+end $$;
+select id as egg from public.item_masters where name = '卵' and household_id is null \gset
+select public.register_purchase(jsonb_build_object('items', jsonb_build_array(
+  jsonb_build_object('item_master_id', :'egg', 'name', '通知テストの卵', 'quantity', 2))));
+update public.products set ended_at = now(), end_reason = 'used_up'
+where id = (select id from public.products where name = '通知テストの卵' limit 1);
+reset role;
+
+set role service_role;
+select pg_temp.assert(not public.has_pending_change_events(), '直後の操作はまだ通知しない（まとめるため待つ）');
+select pg_temp.assert((select count(*) from public.claim_change_events()) = 0, '待ち時間内のイベントは取り出さない');
+select pg_temp.assert((select count(*) from public.claim_change_events(interval '0')) = 3, '登録2件と使い切り1件を取り出す');
+select pg_temp.assert((select count(*) from public.claim_change_events(interval '0')) = 0, '取り出したイベントは二度通知しない');
+reset role;
+update public.product_events set created_at = now() - interval '1 minute' where id > (select last_event_id from public.change_notify_cursor);
+select pg_temp.assert(not public.has_pending_change_events(), '未通知のイベントがなければ呼ばない');
+
 \echo 'ALL TESTS PASSED'

@@ -30,6 +30,7 @@ bunx supabase db push
 echo "▶ Edge Functions"
 bunx supabase functions deploy analyze-purchase --use-api
 bunx supabase functions deploy expiry-alerts --use-api
+bunx supabase functions deploy change-notify --use-api
 
 echo "▶ Web 版"
 (cd apps/mobile && bun run deploy:web)

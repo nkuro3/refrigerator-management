@@ -421,3 +421,7 @@ verify_jwt = true
 # pg_cron から CRON_SECRET で呼ぶため JWT 検証はしない（関数内で検証する）
 [functions.expiry-alerts]
 verify_jwt = false
+
+# 冷蔵庫の更新通知。pg_cron から CRON_SECRET で呼ぶ
+[functions.change-notify]
+verify_jwt = false
