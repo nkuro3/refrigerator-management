@@ -19,6 +19,18 @@ export const keys = {
   shopping: ["shopping"] as const,
   dashboard: (from: string, to: string) => ["dashboard", from, to] as const,
   members: ["members"] as const,
+  notifications: ["notifications"] as const,
+  unread: ["notifications", "unread"] as const,
+};
+
+export type AppNotification = {
+  id: number;
+  kind: "expiry" | "change";
+  title: string;
+  body: string;
+  url: string;
+  read_at: string | null;
+  created_at: string;
 };
 
 const PRODUCT_SELECT = "*, item_masters(name, category_id)";
@@ -328,12 +340,49 @@ export async function analyzePurchase(receiptPath: string | null, photoPaths: st
   return data as AnalysisResult;
 }
 
+// ---------- お知らせ（ヘッダーのベル） ----------
+export function useNotifications() {
+  return useQuery({
+    queryKey: keys.notifications,
+    queryFn: async () =>
+      unwrap(
+        await supabase.from("notifications").select("id, kind, title, body, url, read_at, created_at")
+          .order("created_at", { ascending: false }).limit(100),
+      ) as AppNotification[],
+  });
+}
+
+export function useUnreadCount(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.unread,
+    enabled,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("notifications").select("id", { count: "exact", head: true }).is("read_at", null);
+      if (error) throw new Error(error.message);
+      return count ?? 0;
+    },
+  });
+}
+
+export function useMarkNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("mark_notifications_read");
+      if (error) throw new Error(error.message);
+    },
+    // 一覧と未読数を取り直す（開いている間に届いたものも次に既読にできるように）
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.notifications }),
+  });
+}
+
 // ---------- 家族間の同期 ----------
-// 他の家族が在庫や買い物リストを変えたら、表示中のデータを取り直す
-export function useRealtimeSync(householdId: string | undefined) {
+// 他の家族が在庫や買い物リストを変えたら、表示中のデータを取り直す。自分宛てのお知らせが届いたらベルを更新する
+export function useRealtimeSync(householdId: string | undefined, userId: string | undefined) {
   const qc = useQueryClient();
   useEffect(() => {
-    if (!householdId) return;
+    if (!householdId || !userId) return;
     const filter = `household_id=eq.${householdId}`;
     const channel = supabase
       .channel(`household:${householdId}`)
@@ -348,9 +397,12 @@ export function useRealtimeSync(householdId: string | undefined) {
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "shopping_list_items" }, () => {
         void qc.invalidateQueries({ queryKey: keys.shopping });
       })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, () => {
+        void qc.invalidateQueries({ queryKey: keys.notifications });
+      })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [householdId, qc]);
+  }, [householdId, userId, qc]);
 }

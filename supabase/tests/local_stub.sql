@@ -20,3 +20,6 @@ grant execute on function auth.uid() to authenticated, anon, service_role;
 grant usage on schema public to authenticated, anon, service_role;
 alter default privileges in schema public grant all on tables to authenticated, anon, service_role;
 alter default privileges in schema public grant all on sequences to authenticated, anon, service_role;
+
+-- Realtime の配信設定（Supabase では最初からある）
+create publication supabase_realtime;

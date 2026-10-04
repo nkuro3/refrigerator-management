@@ -97,3 +97,27 @@ export async function sendToUsers(
 
   return { sentApp: expo.sent, sentWeb: web.sent, removed: expoInvalid.length + webInvalid.length };
 }
+
+// お知らせに保存してからプッシュ通知を送る
+// push: false のものはお知らせ（アプリのベル）にだけ載せる
+export type Notice = { userId: string; kind: "expiry" | "change"; msg: PushMessage; push: boolean };
+
+export async function notify(
+  admin: SupabaseClient,
+  notices: Notice[],
+): Promise<{ saved: number; sentApp: number; sentWeb: number; removed: number }> {
+  if (notices.length === 0) return { saved: 0, sentApp: 0, sentWeb: 0, removed: 0 };
+
+  const { error } = await admin.from("notifications").insert(notices.map((n) => ({
+    user_id: n.userId, kind: n.kind, title: n.msg.title, body: n.msg.body, url: n.msg.url,
+  })));
+  if (error) console.error("save notifications failed", error.message); // 保存に失敗してもプッシュは送る
+
+  const messages = new Map<string, PushMessage[]>();
+  for (const n of notices) {
+    if (!n.push) continue;
+    messages.set(n.userId, [...(messages.get(n.userId) ?? []), n.msg]);
+  }
+  const r = await sendToUsers(admin, messages);
+  return { saved: error ? 0 : notices.length, ...r };
+}

@@ -2,7 +2,7 @@
 // 家族の誰かが登録・使い切り・廃棄・冷凍／解凍・残量変更をしたら、操作した本人以外のメンバーに知らせる
 // 1分以内の操作は人ごとに1通にまとめる
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { type PushMessage, sendToUsers } from "../_shared/push.ts";
+import { type Notice, notify } from "../_shared/push.ts";
 import { buildChangeMessage, type ChangeEvent, groupByActor } from "./message.ts";
 
 const json = (body: unknown, status = 200) =>
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   const batches = groupByActor((events ?? []) as ChangeEvent[]);
   if (batches.length === 0) return json({ events: events?.length ?? 0, sent: 0 });
 
-  // 通知先: 同じ世帯で、更新通知をオンにしているメンバー
+  // 通知先: 同じ世帯のメンバー。お知らせには全員、プッシュ通知は更新通知をオンにしている人だけ
   const householdIds = [...new Set(batches.map((b) => b.householdId))];
   const { data: allMembers, error: mErr } = await admin
     .from("household_members").select("user_id, household_id").in("household_id", householdIds);
@@ -32,22 +32,23 @@ Deno.serve(async (req) => {
     .in("user_id", (allMembers ?? []).map((m) => m.user_id));
   if (pErr) return json({ error: pErr.message }, 500);
   const off = new Set((optedOut ?? []).map((p) => p.user_id as string));
-  const members = (allMembers ?? []).filter((m) => !off.has(m.user_id as string));
 
-  const messages = new Map<string, PushMessage[]>();
+  const notices: Notice[] = [];
   for (const b of batches) {
     const msg = buildChangeMessage(b);
     if (!msg) continue;
-    for (const m of members) {
-      if (m.household_id !== b.householdId || m.user_id === b.actorId) continue; // 本人には送らない
-      const list = messages.get(m.user_id) ?? [];
-      list.push({ ...msg, url: "/", tag: `change-${b.events[0]!.event_id}` });
-      messages.set(m.user_id, list);
+    for (const m of allMembers ?? []) {
+      const userId = m.user_id as string;
+      if (m.household_id !== b.householdId || userId === b.actorId) continue; // 本人には送らない
+      notices.push({
+        userId, kind: "change", push: !off.has(userId),
+        msg: { ...msg, url: "/", tag: `change-${b.events[0]!.event_id}` },
+      });
     }
   }
 
   try {
-    const r = await sendToUsers(admin, messages);
+    const r = await notify(admin, notices);
     return json({ events: events?.length ?? 0, batches: batches.length, sent: r.sentApp + r.sentWeb, ...r });
   } catch (e) {
     return json({ error: String(e) }, 500);

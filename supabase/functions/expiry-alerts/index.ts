@@ -1,7 +1,7 @@
 // 使い切りアラート: pg_cron から毎時呼ばれ、通知時刻（日本時間）が来たユーザーの端末にプッシュ通知を送る
 // 通知は世帯メンバー全員に送る（各自の notify_hour に届く）
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { type PushMessage, sendToUsers } from "../_shared/push.ts";
+import { type Notice, notify } from "../_shared/push.ts";
 import { buildAlertMessage, type ExpiringRow } from "./message.ts";
 
 const json = (body: unknown, status = 200) =>
@@ -47,14 +47,14 @@ Deno.serve(async (req) => {
     byHousehold.set(r.household_id, [...(byHousehold.get(r.household_id) ?? []), r]);
   }
 
-  const messages = new Map<string, PushMessage[]>();
+  const notices: Notice[] = [];
   for (const [userId, household] of householdOf) {
     const alert = buildAlertMessage(byHousehold.get(household) ?? []);
-    if (alert) messages.set(userId, [{ ...alert, url: "/dashboard", tag: "expiry-alert" }]);
+    if (alert) notices.push({ userId, kind: "expiry", msg: { ...alert, url: "/dashboard", tag: "expiry-alert" }, push: true });
   }
 
   try {
-    const r = await sendToUsers(admin, messages);
+    const r = await notify(admin, notices);
     return json({ hour: jstHour, sent: r.sentApp + r.sentWeb, ...r });
   } catch (e) {
     return json({ error: String(e) }, 500);

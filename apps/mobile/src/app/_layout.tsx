@@ -17,7 +17,7 @@ function RootNavigator() {
   const signedIn = !!session;
   const ready = signedIn && !!household;
 
-  useRealtimeSync(household?.id);
+  useRealtimeSync(household?.id, userId);
 
   // ユーザーが変わったら前のユーザーのキャッシュと登録途中のデータを捨てる
   useEffect(() => {
@@ -57,6 +57,7 @@ function RootNavigator() {
         <Stack.Screen name="register/manual" options={{ title: "手入力で登録" }} />
         <Stack.Screen name="items/index" options={{ title: "品目の管理" }} />
         <Stack.Screen name="items/[id]" options={{ title: "品目" }} />
+        <Stack.Screen name="notifications" options={{ title: "お知らせ" }} />
       </Stack.Protected>
     </Stack>
   );

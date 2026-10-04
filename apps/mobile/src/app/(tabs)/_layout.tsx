@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Tabs } from "expo-router";
-import { type ColorValue, Pressable } from "react-native";
+import { type ColorValue, Pressable, View } from "react-native";
+import { NotificationBell } from "../../components/NotificationBell";
 import { colors } from "../../components/ui";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -18,6 +19,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.primary,
         headerTitleStyle: { color: colors.text },
         sceneStyle: { backgroundColor: colors.bg },
+        headerRight: () => <NotificationBell />,
       }}
     >
       <Tabs.Screen
@@ -26,14 +28,17 @@ export default function TabsLayout() {
           title: "在庫",
           tabBarIcon: icon("file-tray-stacked-outline"),
           headerRight: () => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="まとめて登録"
-              onPress={() => router.push("/register")}
-              style={{ paddingHorizontal: 16 }}
-            >
-              <Ionicons name="camera-outline" size={26} color={colors.primary} />
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", paddingRight: 4 }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="まとめて登録"
+                onPress={() => router.push("/register")}
+                style={{ paddingHorizontal: 12 }}
+              >
+                <Ionicons name="camera-outline" size={26} color={colors.primary} />
+              </Pressable>
+              <NotificationBell />
+            </View>
           ),
         }}
       />

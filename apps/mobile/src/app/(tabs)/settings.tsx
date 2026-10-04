@@ -137,7 +137,7 @@ export default function Settings() {
       <Card>
         <SectionTitle>冷蔵庫の更新通知</SectionTitle>
         <View style={[styles.row, { justifyContent: "space-between" }]}>
-          <Text style={[styles.body, { flex: 1 }]}>家族が登録・使い切り・解凍などをしたら通知する</Text>
+          <Text style={[styles.body, { flex: 1 }]}>家族が登録・使い切り・解凍などをしたらプッシュ通知する</Text>
           <Switch
             value={profile?.notify_changes ?? true}
             disabled={busy}
@@ -145,7 +145,7 @@ export default function Settings() {
             trackColor={{ true: colors.primary }}
           />
         </View>
-        <Text style={styles.muted}>1分以内の操作は1通にまとめて届きます。自分の操作は通知されません。</Text>
+        <Text style={styles.muted}>1分以内の操作は1通にまとめて届きます。自分の操作は通知されません。オフにしても、ヘッダーのベル（お知らせ）には載ります。</Text>
       </Card>
 
       <Card>

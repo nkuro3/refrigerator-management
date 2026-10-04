@@ -249,4 +249,28 @@ reset role;
 update public.product_events set created_at = now() - interval '1 minute' where id > (select last_event_id from public.change_notify_cursor);
 select pg_temp.assert(not public.has_pending_change_events(), '未通知のイベントがなければ呼ばない');
 
+-- ---- お知らせ（20261004000001_notifications.sql） ----
+insert into public.notifications (user_id, kind, title, body) values
+  ('00000000-0000-0000-0000-00000000000a', 'change', 'パパさんが冷蔵庫を更新', '登録：卵'),
+  ('00000000-0000-0000-0000-00000000000a', 'expiry', '使い切りアラート', '期限間近1件：卵'),
+  ('00000000-0000-0000-0000-00000000000b', 'change', 'りこさんが冷蔵庫を更新', '使い切り：牛乳');
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', false);
+select pg_temp.assert((select count(*) from public.notifications) = 2, '自分のお知らせだけ見える');
+do $$
+begin
+  insert into public.notifications (user_id, kind, title, body) values (auth.uid(), 'change', 'x', 'x');
+  raise exception 'ASSERT FAILED: クライアントからお知らせを作れた';
+exception when insufficient_privilege then
+  raise notice 'ok: クライアントからはお知らせを作れない';
+end $$;
+select public.mark_notifications_read();
+select pg_temp.assert((select count(*) from public.notifications where read_at is null) = 0, 'すべて既読にできる');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', false);
+select pg_temp.assert((select count(*) from public.notifications where read_at is null) = 1, '他の人の既読は変わらない');
+reset role;
+update public.notifications set created_at = now() - interval '31 days' where kind = 'expiry';
+select public.purge_old_notifications();
+select pg_temp.assert((select count(*) from public.notifications) = 2, '30日より前のお知らせは消える');
+
 \echo 'ALL TESTS PASSED'
