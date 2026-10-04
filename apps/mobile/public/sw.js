@@ -1,5 +1,5 @@
 // Service Worker: プッシュ通知（使い切りアラート・冷蔵庫の更新通知）の表示と、通知をタップしたときの画面遷移
-// 送信側は supabase/functions/_shared/push.ts。ペイロードは { title, body, url, tag }
+// 送信側は supabase/functions/_shared/push.ts。ペイロードは { title, body, url, tag, badge? }
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -16,14 +16,19 @@ self.addEventListener("push", (event) => {
   } catch {
     if (event.data) data.body = event.data.text();
   }
+  // ホーム画面のアイコンに未読数のバッジを付ける（対応ブラウザのみ）
+  const badge =
+    typeof data.badge === "number" && self.navigator.setAppBadge
+      ? self.navigator.setAppBadge(data.badge).catch(() => {})
+      : Promise.resolve();
   event.waitUntil(
-    self.registration.showNotification(data.title, {
+    badge.then(() => self.registration.showNotification(data.title, {
       body: data.body,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
       tag: data.tag, // 同じ tag の通知は上書きされる（使い切りアラートは常に最新の1件）
       data: { url: data.url },
-    }),
+    })),
   );
 });
 

@@ -86,3 +86,8 @@ export function useNotificationNavigation(ready: boolean): void {
     }
   }, [ready, lastResponse]);
 }
+
+// ホーム画面のアイコンのバッジ（未読のお知らせ数）。0 で消す
+export function setAppBadge(count: number): void {
+  void Notifications.setBadgeCountAsync(count).catch(() => {});
+}

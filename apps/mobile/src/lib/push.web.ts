@@ -90,3 +90,10 @@ export async function unregisterPushToken(): Promise<void> {
 
 // 通知をタップしたときの画面遷移は Service Worker（sw.js の notificationclick）で行う
 export function useNotificationNavigation(_ready: boolean): void {}
+
+// ホーム画面のアイコンのバッジ（未読のお知らせ数）。0 で消す。対応していないブラウザでは何もしない
+export function setAppBadge(count: number): void {
+  const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+  if (!nav.setAppBadge || !nav.clearAppBadge) return;
+  void (count > 0 ? nav.setAppBadge(count) : nav.clearAppBadge()).catch(() => {});
+}

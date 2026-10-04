@@ -6,12 +6,14 @@ import * as webpush from "jsr:@negrel/webpush@0.5.0";
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
 // url: 通知をタップしたときに開く画面。tag: 同じ tag の通知は端末で上書きされる（Web 版）
-export type PushMessage = { title: string; body: string; url: string; tag: string };
+// badge: ホーム画面のアイコンに出す未読数（notify が詰める）
+export type PushMessage = { title: string; body: string; url: string; tag: string; badge?: number };
 
 // ---------- ネイティブアプリ（Expo Push） ----------
 async function sendExpo(targets: { token: string; msg: PushMessage }[]): Promise<{ sent: number; invalid: string[] }> {
   const messages = targets.map(({ token, msg }) => ({
     to: token, sound: "default", title: msg.title, body: msg.body, data: { url: msg.url },
+    ...(msg.badge !== undefined ? { badge: msg.badge } : {}),
   }));
   let sent = 0;
   const invalid: string[] = [];
@@ -113,10 +115,21 @@ export async function notify(
   })));
   if (error) console.error("save notifications failed", error.message); // 保存に失敗してもプッシュは送る
 
+  // 送る相手ごとの未読数（ホーム画面のアイコンのバッジ）
+  const pushUserIds = [...new Set(notices.filter((n) => n.push).map((n) => n.userId))];
+  const unread = new Map<string, number>();
+  if (pushUserIds.length > 0) {
+    const { data, error: uErr } = await admin
+      .from("notifications").select("user_id").is("read_at", null).in("user_id", pushUserIds);
+    if (uErr) console.error("count unread failed", uErr.message);
+    for (const row of data ?? []) unread.set(row.user_id as string, (unread.get(row.user_id as string) ?? 0) + 1);
+  }
+
   const messages = new Map<string, PushMessage[]>();
   for (const n of notices) {
     if (!n.push) continue;
-    messages.set(n.userId, [...(messages.get(n.userId) ?? []), n.msg]);
+    const badge = unread.get(n.userId);
+    messages.set(n.userId, [...(messages.get(n.userId) ?? []), badge ? { ...n.msg, badge } : n.msg]);
   }
   const r = await sendToUsers(admin, messages);
   return { saved: error ? 0 : notices.length, ...r };
