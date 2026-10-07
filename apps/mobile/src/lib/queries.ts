@@ -72,19 +72,18 @@ export function useItemMasters() {
   });
 }
 
+// 買い物リスト（未購入のものだけ。チェックしたら消える）
 export function useShoppingList() {
   return useQuery({
     queryKey: keys.shopping,
-    queryFn: async () => {
-      const since = new Date(Date.now() - 3 * 86_400_000).toISOString();
-      return unwrap(
+    queryFn: async () =>
+      unwrap(
         await supabase
           .from("shopping_list_items")
           .select("id, item_master_id, note, is_purchased, purchased_at, created_at, item_masters(name, category_id)")
-          .or(`is_purchased.eq.false,purchased_at.gte.${since}`)
+          .eq("is_purchased", false)
           .order("created_at"),
-      ) as unknown as ShoppingListItem[];
-    },
+      ) as unknown as ShoppingListItem[],
   });
 }
 
@@ -194,7 +193,19 @@ export function useAddToShopping() {
 
 export function useSetPurchased() {
   const invalidate = useInvalidate();
+  const qc = useQueryClient();
   return useMutation({
+    // チェックしたらすぐ一覧から消す（失敗したら戻す）
+    onMutate: async ({ id, purchased }: { id: string; purchased: boolean }) => {
+      if (!purchased) return { prev: undefined };
+      await qc.cancelQueries({ queryKey: keys.shopping });
+      const prev = qc.getQueryData<ShoppingListItem[]>(keys.shopping);
+      qc.setQueryData<ShoppingListItem[]>(keys.shopping, (list) => list?.filter((i) => i.id !== id));
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(keys.shopping, ctx.prev);
+    },
     mutationFn: async ({ id, purchased }: { id: string; purchased: boolean }) => {
       if (purchased) {
         unwrap(
@@ -210,7 +221,7 @@ export function useSetPurchased() {
         unwrap(await supabase.rpc("unpurchase_shopping_item", { p_id: id }));
       }
     },
-    onSuccess: () => invalidate(keys.shopping),
+    onSettled: () => invalidate(keys.shopping),
   });
 }
 
