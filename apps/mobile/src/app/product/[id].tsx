@@ -15,10 +15,11 @@ import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
+import { DateField, formatDateLabel } from "../../components/DateField";
 import { EndSheet } from "../../components/EndSheet";
 import { ItemPicker } from "../../components/ItemPicker";
 import { expiryTone } from "../../components/ProductRow";
-import { Button, Card, Chip, ErrorText, Field, Loading, Screen, SectionTitle, styles } from "../../components/ui";
+import { Button, Card, Chip, ErrorText, Loading, Screen, SectionTitle, styles } from "../../components/ui";
 import { signedUrls } from "../../lib/images";
 import { useActiveProducts, useProduct, useUndoEnd, useUpdateProduct } from "../../lib/queries";
 
@@ -116,12 +117,12 @@ export default function ProductDetail() {
             <Card>
               <SectionTitle>期限</SectionTitle>
               <Text style={styles.body}>
-                {product.expires_on ?? "未設定"}
+                {product.expires_on ? formatDateLabel(product.expires_on) : "未設定"}
                 {product.expires_is_estimated ? "（推定）" : ""}
               </Text>
               {editingExpiry ? (
                 <>
-                  <Field label="期限（YYYY-MM-DD）" value={expiryInput} onChangeText={setExpiryInput} placeholder={today} keyboardType="numbers-and-punctuation" />
+                  <DateField label="印字の期限" value={expiryInput} onChange={setExpiryInput} />
                   <View style={styles.row}>
                     <Button
                       title="保存"

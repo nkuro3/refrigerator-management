@@ -2,6 +2,7 @@ import { categoryName, type ItemMaster, todayJst } from "@fridge/shared";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
+import { DateField } from "../../components/DateField";
 import { ItemPicker } from "../../components/ItemPicker";
 import { Button, Card, colors, ErrorText, Field, Screen, styles } from "../../components/ui";
 import { useRegisterPurchase } from "../../lib/queries";
@@ -55,7 +56,7 @@ export default function RegisterManual() {
           <Button title="＋" variant="secondary" small onPress={() => setQuantity((q) => Math.min(50, q + 1))} />
         </View>
         <Field label="1個あたりの価格（円・任意）" value={price} onChangeText={setPrice} keyboardType="number-pad" />
-        <Field label="購入日" value={purchasedOn} onChangeText={setPurchasedOn} keyboardType="numbers-and-punctuation" />
+        <DateField label="購入日" value={purchasedOn} onChange={setPurchasedOn} maximumDate={todayJst()} />
         <View style={[styles.row, { justifyContent: "space-between" }]}>
           <Text style={styles.body}>冷凍食品</Text>
           <Switch value={frozen} onValueChange={setFrozen} trackColor={{ true: colors.primary }} />

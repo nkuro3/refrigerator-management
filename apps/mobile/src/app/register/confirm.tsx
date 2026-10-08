@@ -3,12 +3,14 @@ import {
   categoryName,
   type DraftItem,
   needsReview,
+  todayJst,
 } from "@fridge/shared";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, Switch, Text, TextInput, View } from "react-native";
+import { DateField } from "../../components/DateField";
 import { ItemPicker } from "../../components/ItemPicker";
-import { Button, Card, Chip, colors, Empty, ErrorText, Field, Screen, styles } from "../../components/ui";
+import { Button, Card, Chip, colors, Empty, ErrorText, Screen, styles } from "../../components/ui";
 import { draftStore, useRegisterDraft } from "../../lib/draft-store";
 import { removePhotos } from "../../lib/images";
 import { useItemMasters, useRegisterPurchase } from "../../lib/queries";
@@ -54,7 +56,7 @@ export default function RegisterConfirm() {
   const submit = async () => {
     setError(null);
     try {
-      if (!DATE_RE.test(draft.purchasedOn)) throw new Error("購入日は YYYY-MM-DD の形で入力してください");
+      if (!DATE_RE.test(draft.purchasedOn)) throw new Error("購入日を選んでください");
       const payload = buildRegisterPayload(draft.items, {
         purchasedOn: draft.purchasedOn,
         receiptPath: null, // レシート画像は保存しない（登録後に削除する）
@@ -83,7 +85,7 @@ export default function RegisterConfirm() {
 
   return (
     <Screen>
-      <Field label="購入日" value={draft.purchasedOn} onChangeText={(v) => draftStore.update((d) => ({ ...d, purchasedOn: v }))} keyboardType="numbers-and-punctuation" />
+      <DateField label="購入日" value={draft.purchasedOn} onChange={(v) => draftStore.update((d) => ({ ...d, purchasedOn: v }))} maximumDate={todayJst()} />
       <Text style={styles.muted}>黄色の行は確認してください。登録しないものはスイッチをオフにします。</Text>
 
       {[...groups.entries()].map(([label, rows]) => (
